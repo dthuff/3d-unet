@@ -42,8 +42,7 @@ a_generator = niftiDataGen(batch_size=batch_size,
                             target_img_paths=target_img_paths,
                             n_classes=num_classes)
 
-data = a_generator.__getitem__(2)
-
- 
-print(np.shape(data[0]))
-print(np.shape(data[1]))
+for i in np.arange(10):
+    data = a_generator.__getitem__(i)
+    print(np.shape(data[0]))
+    print(np.shape(data[1]))
