@@ -98,64 +98,47 @@ def nifti_train_generator(img_dir, mask_dir, batch_size, input_size, extraction_
                 X = X.reshape([-1] + list(input_size))
                 y = y.reshape([-1] + list(input_size))
 
-                X = np.expand_dims(X, axis=4) #shape is [batch, x, y, z]
+                X = np.expand_dims(X, axis=4) #shape is [batch, x, y, z, n_channels]
                 y = keras.utils.to_categorical(y) #now shape should be [batch, x, y, z, n_class]
                 
 
             yield X, y
 
+from tensorflow import keras
+import numpy as np
+from tensorflow.keras.preprocessing.image import load_img
 
-# Not using this right now
-class niftiDataGenerator(keras.utils.Sequence):
-    'Generates data for Keras'
-    def __init__(self, list_IDs, labels, batch_size=32, dim=(64,64,64), n_channels=1,
-                 n_classes=10, shuffle=True):
-        'Initialization'
-        self.dim = dim
+
+class niftiDataGen(keras.utils.Sequence):
+    """Helper to iterate over the data (as Numpy arrays)."""
+
+    def __init__(self, batch_size, patch_size, extraction_step, input_img_paths, target_img_paths, n_classes):
         self.batch_size = batch_size
-        self.labels = labels
-        self.list_IDs = list_IDs
-        self.n_channels = n_channels
+        self.patch_size = patch_size
+        self.extraction_step = extraction_step
+        self.input_img_paths = input_img_paths
+        self.target_img_paths = target_img_paths
         self.n_classes = n_classes
-        self.shuffle = shuffle
-        self.on_epoch_end()
 
     def __len__(self):
-        'Denotes the number of batches per epoch'
-        return int(np.floor(len(self.list_IDs) / self.batch_size))
+        return len(self.target_img_paths) // self.batch_size
 
-    def __getitem__(self, index):
-        'Generate one batch of data'
-        # Generate indexes of the batch
-        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
-
-        # Find list of IDs
-        list_IDs_temp = [self.list_IDs[k] for k in indexes]
-
-        # Generate data
-        X, y = self.__data_generation(list_IDs_temp)
-
-        return X, y
-
-    def on_epoch_end(self):
-        'Updates indexes after each epoch'
-        self.indexes = np.arange(len(self.list_IDs))
-        if self.shuffle == True:
-            np.random.shuffle(self.indexes)
-
-    def __data_generation(self, list_IDs_temp):
-        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-        # Initialization
-        X = np.empty((self.batch_size, *self.dim, self.n_channels))
-        y = np.empty((self.batch_size), dtype=int)
-
-        # Generate data
-        for i, ID in enumerate(list_IDs_temp):
-            # Store sample
-            # X[i,] = np.load('data/' + ID + '.npy')
-            X[i,] = load_nii('data/image/' + ID + '.nii.gz')
-
-            # Store class
-            y[i] = load_nii('data/mask/' + ID + '.nii.gz')
+    def __getitem__(self, idx):
+        """Returns tuple (input, target) correspond to batch #idx."""
+        i = idx * self.batch_size
+        batch_input_img_paths = self.input_img_paths[i : i + self.batch_size]
+        batch_target_img_paths = self.target_img_paths[i : i + self.batch_size]
+        
+        for j, path in enumerate(batch_input_img_paths):
+            whole_img = load_nii(path)
+            X = extract_patches(whole_img, patch_shape=self.patch_size, extraction_step=self.extraction_step)
+            X = X.reshape([-1] + list(self.patch_size))
+            X = np.expand_dims(X, axis=4) #shape is [batch, x, y, z, n_channels]
+        
+        for j, path in enumerate(batch_target_img_paths):
+            whole_mask = load_nii(path)
+            y = extract_patches(whole_mask, patch_shape=self.patch_size, extraction_step=self.extraction_step)
+            y = y.reshape([-1] + list(self.patch_size))
+            y = keras.utils.to_categorical(y) #now shape should be [batch, x, y, z, n_class]
 
         return X, y
