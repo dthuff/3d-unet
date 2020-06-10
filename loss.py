@@ -10,14 +10,8 @@ def dsc_loss_fcn(y_true, y_pred):
     return 1 - dice_coef
 
 # from https://github.com/keras-team/keras/issues/9395
-def dice_coef(y_true, y_pred):
-    smooth = 1
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
-
 def dice_coef_ignore_bg(y_true, y_pred):
+    '''shape of y_true and y_pred are [batch, x, y, z, n_classes]'''
     smooth = 1
 
     y_true = y_true[:,:,:,:,1:]
@@ -31,13 +25,27 @@ def dice_coef_ignore_bg(y_true, y_pred):
 def dice_coef_ignore_bg_loss(y_true, y_pred):
     return 1-dice_coef_ignore_bg(y_true,y_pred)
 
+#calculates dice considering an input with a single class
+# from https://stackoverflow.com/questions/53926178/is-there-a-way-to-output-a-metric-with-several-values-in-keras
+def dice_single(true,pred):
+    '''the shape of true and pred are [batch, x, y, z]'''
+    smooth = 1
+    
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    intersection = K.sum(y_true_f * y_pred_f)
+    return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
+def dice_for_class(index):
+    def dice_inner(true, pred):
 
-def dice_coef_multilabel_loss(y_true, y_pred, numLabels=5):
-    dice=0
-    for index in range(numLabels):
-        dice -= dice_coef(y_true[:,index,:,:,:], y_pred[:,index,:,:,:])
-    return dice
+        #get only the desired class
+        true = true[:,:,:,:,index]
+        pred = pred[:,:,:,:,index]
+
+        #return dice per class
+        return dice_single(true, pred)
+    return dice_inner
 
 # Ref: salehi17, "Twersky loss function for image segmentation using 3D FCDN"
 # -> the score is computed for each class separately and then summed

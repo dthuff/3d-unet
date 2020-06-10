@@ -91,7 +91,8 @@ def nifti_train_generator(img_dir, mask_dir, batch_size, input_size, extraction_
             for id in ids_train_batch: #needs to draw patches
                 whole_img = load_nii(os.path.join(img_dir, list_images[id]))
                 whole_mask = load_nii(os.path.join(mask_dir, list_mask[id]))
-
+                
+                
                 X = extract_patches(whole_img, patch_shape=input_size, extraction_step=extraction_step)
                 y = extract_patches(whole_mask, patch_shape=input_size, extraction_step=extraction_step)
 
@@ -108,6 +109,13 @@ from tensorflow import keras
 import numpy as np
 from tensorflow.keras.preprocessing.image import load_img
 
+
+def filter_patches(patch_masks):
+    '''Removes patches that are entirely background (class 0)
+    Assumes input is patch masks of shape [batch, x, y, z, n_classes]'''
+
+    s = np.sum(patch_masks[:,:,:,:,1:],axis=(1,2,3,4))
+    return s > 0
 
 class niftiDataGen(keras.utils.Sequence):
     """Helper to iterate over the data (as Numpy arrays)."""
@@ -129,16 +137,28 @@ class niftiDataGen(keras.utils.Sequence):
         batch_input_img_paths = self.input_img_paths[i : i + self.batch_size]
         batch_target_img_paths = self.target_img_paths[i : i + self.batch_size]
         
+        #trim a random bit off the image to vary patch centers epoch to epoch
+        r = np.random.randint(0, self.patch_size[0]/2, size=(3,))
+
         for j, path in enumerate(batch_input_img_paths):
             whole_img = load_nii(path)
+            whole_img = whole_img[r[0]:,r[1]:,r[2]:]
+
             X = extract_patches(whole_img, patch_shape=self.patch_size, extraction_step=self.extraction_step)
             X = X.reshape([-1] + list(self.patch_size))
             X = np.expand_dims(X, axis=4) #shape is [batch, x, y, z, n_channels]
-        
+
         for j, path in enumerate(batch_target_img_paths):
             whole_mask = load_nii(path)
+            whole_mask = whole_mask[r[0]:,r[1]:,r[2]:]
+
             y = extract_patches(whole_mask, patch_shape=self.patch_size, extraction_step=self.extraction_step)
             y = y.reshape([-1] + list(self.patch_size))
             y = keras.utils.to_categorical(y) #now shape should be [batch, x, y, z, n_class]
 
-        return X, y
+        #remove patches that are all blank
+        ind = filter_patches(y)
+        Xf = X[ind,:,:,:]
+        yf = y[ind,:,:,:]
+
+        return Xf, yf

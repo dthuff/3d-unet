@@ -1,14 +1,13 @@
 import os
 import random
-from data_loading import niftiDataGen
-from model import unet3d, toy_unet3d
+from data_loading import niftiDataGen, load_nii
 import numpy as np
 
-input_dir = "../data/image/"
-target_dir = "../data/mask/"
+input_dir = "../data/multilabel/image/"
+target_dir = "../data/multilabel/mask/"
 
-patch_size = (64, 64, 64)
-extraction_step = 64
+patch_size = (32, 32, 32)
+extraction_step = 16
 num_classes = 2
 batch_size = 1
 
@@ -29,8 +28,15 @@ target_img_paths = sorted(
 
 print("Number of samples:", len(input_img_paths))
 
-for input_path, target_path in zip(input_img_paths[:20], target_img_paths[:20]):
+for input_path, target_path in zip(input_img_paths, target_img_paths):
     print(input_path, "|", target_path)
+    img = load_nii(input_path)
+    print(np.shape(img))
+    mask = load_nii(target_path)
+    print(np.shape(mask))
+    if not np.shape(img) == np.shape(mask):
+        print("****************UH OH****************")
+    
 
 
 

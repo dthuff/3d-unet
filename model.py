@@ -3,13 +3,47 @@ import os
 import numpy as np
 from keras.models import *
 from keras.layers import *
-from keras.optimizers import *
-from keras.callbacks import ModelCheckpoint, LearningRateScheduler
+
 from keras import backend as keras
-from loss import tversky_loss, dice_coef_ignore_bg, dice_coef_ignore_bg_loss
 
 
-def unet3d(pretrained_weights = None, input_size = (64,64,64,1), num_classes=19):
+def unet3d_3blocks(pretrained_weights = None, input_size = (64,64,64,1), num_classes=19):
+
+    inputs = Input(input_size)
+    conv1 = Conv3D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
+    conv1 = Conv3D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv1)
+    pool1 = MaxPooling3D(pool_size=(2, 2, 2))(conv1)
+
+    conv2 = Conv3D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool1)
+    conv2 = Conv3D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv2)
+    pool2 = MaxPooling3D(pool_size=(2, 2, 2))(conv2)
+
+    conv3 = Conv3D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool2)
+    conv3 = Conv3D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv3)
+    drop3 = Dropout(0.5)(conv3)
+
+    up4 = Conv3D(128, 2, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(UpSampling3D(size = (2,2,2))(drop3))
+    merge4 = concatenate([conv2,up4], axis = 4)
+    conv4 = Conv3D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge4)
+    conv4 = Conv3D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv4)
+
+    up5 = Conv3D(64, 2, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(UpSampling3D(size = (2,2,2))(conv4))
+    merge5 = concatenate([conv1,up5], axis = 4)
+    conv5 = Conv3D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge5)
+    conv5 = Conv3D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv5)
+    outputs = Conv3D(num_classes, 1, activation = 'sigmoid')(conv5)
+
+    model = Model(inputs = inputs, outputs = outputs)
+    
+    model.summary(line_length=110)
+
+    if(pretrained_weights):
+    	model.load_weights(pretrained_weights)
+
+    return model
+
+
+def unet3d_4blocks(pretrained_weights = None, input_size = (64,64,64,1), num_classes=19):
 
     inputs = Input(input_size)
     conv1 = Conv3D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
@@ -45,8 +79,6 @@ def unet3d(pretrained_weights = None, input_size = (64,64,64,1), num_classes=19)
     outputs = Conv3D(num_classes, 1, activation = 'sigmoid')(conv7)
 
     model = Model(inputs = inputs, outputs = outputs)
-
-    model.compile(optimizer = Adam(lr = 1e-4), loss = dice_coef_ignore_bg_loss, metrics = [tf.keras.metrics.MeanIoU(num_classes=2), dice_coef_ignore_bg])
     
     model.summary(line_length=110)
 
@@ -63,8 +95,6 @@ def toy_unet3d(pretrained_weights = None, input_size = (64,64,64,1), num_classes
     conv10 = Conv3D(num_classes, 1, activation = 'sigmoid')(conv1)
 
     model = Model(inputs = inputs, outputs = conv10)
-
-    model.compile(optimizer = Adam(lr = 1e-4), loss = tversky_loss, metrics = ['accuracy'])
     
     model.summary(line_length=110)
 
