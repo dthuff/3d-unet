@@ -27,8 +27,8 @@ def dice_coef_ignore_bg_loss(y_true, y_pred):
 
 #calculates dice considering an input with a single class
 # from https://stackoverflow.com/questions/53926178/is-there-a-way-to-output-a-metric-with-several-values-in-keras
-def dice_single(true,pred):
-    '''the shape of true and pred are [batch, x, y, z]'''
+def dice_single(y_true,y_pred):
+    '''the shape of y_true and y_pred are [batch, x, y, z]'''
     smooth = 1
     
     y_true_f = K.flatten(y_true)

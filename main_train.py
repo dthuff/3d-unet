@@ -9,7 +9,7 @@ from keras.callbacks import *
 from matplotlib import pyplot
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID" 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # use id from $ nvidia-smi
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # use id from $ nvidia-smi
 
 input_dir = "../data/multilabel/image/"
 target_dir = "../data/multilabel/mask/"
@@ -70,10 +70,11 @@ val_gen = niftiDataGen(batch_size,
 
 # Instantiate and compile the model
 model = unet3d_3blocks(input_size = (*patch_size, 1), num_classes=num_classes)
+
 model.compile(optimizer = Adam(lr = 1e-4), 
-            loss = dice_coef_ignore_bg_loss, 
+            loss = tversky_loss, 
             metrics =  [dice_for_class(i) for i in range(num_classes)])
-            
+
 #[dice_for_class(0), dice_for_class(1), dice_coef_ignore_bg])
 
 # Instantiate callbacks

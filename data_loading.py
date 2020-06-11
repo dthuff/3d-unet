@@ -6,6 +6,9 @@ import numbers
 from sklearn.utils import check_array, check_random_state
 from numpy.lib.stride_tricks import as_strided
 from itertools import product
+from tensorflow import keras
+import numpy as np
+from tensorflow.keras.preprocessing.image import load_img
 
 def load_nii(path): #use for both input and label loading
     
@@ -13,6 +16,11 @@ def load_nii(path): #use for both input and label loading
     nii_img = nii_struct.get_fdata()
     
     return( nii_img )
+
+def write_nii(img, path):
+    nii_to_write = nib.Nifti1Image(img, np.eye(4))
+    nib.save(nii_to_write, path)
+    return path
 
 
 def preprocess_input( image ):
@@ -76,44 +84,11 @@ def extract_patches(arr, patch_shape=8, extraction_step=1): #from https://github
     patches = as_strided(arr, shape=shape, strides=strides)
     return patches
 
-def nifti_train_generator(img_dir, mask_dir, batch_size, input_size, extraction_step): #based on amlarraz comment https://github.com/keras-team/keras/issues/3059
-    list_images = os.listdir(img_dir)
-    list_mask = os.listdir(mask_dir)
-    #shuffle(list_images) #Randomize the choice of batches
-    ids_train_split = range(len(list_images))
-    while True:
-         for start in range(0, len(ids_train_split), batch_size):
-            X = np.empty((batch_size, *input_size, 1))
-            y = np.empty((batch_size, *input_size, 1))
-
-            end = min(start + batch_size, len(ids_train_split))
-            ids_train_batch = ids_train_split[start:end]
-            for id in ids_train_batch: #needs to draw patches
-                whole_img = load_nii(os.path.join(img_dir, list_images[id]))
-                whole_mask = load_nii(os.path.join(mask_dir, list_mask[id]))
-                
-                
-                X = extract_patches(whole_img, patch_shape=input_size, extraction_step=extraction_step)
-                y = extract_patches(whole_mask, patch_shape=input_size, extraction_step=extraction_step)
-
-                X = X.reshape([-1] + list(input_size))
-                y = y.reshape([-1] + list(input_size))
-
-                X = np.expand_dims(X, axis=4) #shape is [batch, x, y, z, n_channels]
-                y = keras.utils.to_categorical(y) #now shape should be [batch, x, y, z, n_class]
-                
-
-            yield X, y
-
-from tensorflow import keras
-import numpy as np
-from tensorflow.keras.preprocessing.image import load_img
 
 
 def filter_patches(patch_masks):
     '''Removes patches that are entirely background (class 0)
     Assumes input is patch masks of shape [batch, x, y, z, n_classes]'''
-
     s = np.sum(patch_masks[:,:,:,:,1:],axis=(1,2,3,4))
     return s > 0
 
@@ -146,7 +121,7 @@ class niftiDataGen(keras.utils.Sequence):
 
             X = extract_patches(whole_img, patch_shape=self.patch_size, extraction_step=self.extraction_step)
             X = X.reshape([-1] + list(self.patch_size))
-            X = np.expand_dims(X, axis=4) #shape is [batch, x, y, z, n_channels]
+            X = np.expand_dims(X, axis=4) #now shape is [batch, x, y, z, n_channels]
 
         for j, path in enumerate(batch_target_img_paths):
             whole_mask = load_nii(path)
@@ -154,7 +129,7 @@ class niftiDataGen(keras.utils.Sequence):
 
             y = extract_patches(whole_mask, patch_shape=self.patch_size, extraction_step=self.extraction_step)
             y = y.reshape([-1] + list(self.patch_size))
-            y = keras.utils.to_categorical(y) #now shape should be [batch, x, y, z, n_class]
+            y = keras.utils.to_categorical(y) #now shape should be [batch, x, y, z, n_classes]
 
         #remove patches that are all blank
         ind = filter_patches(y)
